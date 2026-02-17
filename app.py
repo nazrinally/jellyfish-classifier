@@ -102,7 +102,10 @@ def load_model_and_metadata():
             return None, None, None
         
         # Load the Part 2 transfer learning model
-        model = keras.models.load_model(str(model_path))
+        # Use compile=False to avoid TensorFlow version compatibility issues
+        model = keras.models.load_model(str(model_path), compile=False)
+        # Recompile with current TensorFlow version
+        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         st.success(f"✅ Loaded Part 2 Model: {model_path.name} ({model.count_params():,} params)")
         
         # Load Part 2 summary
