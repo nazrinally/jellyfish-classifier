@@ -23,11 +23,13 @@ tuner_results/
 
 # Training artifacts (too large for GitHub)
 *.keras
+*.h5
 baseline_*.csv
 baseline_*.json
 resnet_history.csv
 efficientnet_history.csv
 part2_summary.json
+convert_to_onnx.py
 
 # Dataset folders (too large)
 Train/

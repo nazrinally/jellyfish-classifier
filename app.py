@@ -16,14 +16,8 @@ import plotly.express as px
 from pathlib import Path
 import datetime
 
-# Try to import TensorFlow with helpful error message
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    TF_AVAILABLE = True
-except ImportError as e:
-    TF_AVAILABLE = False
-    TF_ERROR = str(e)
+# Import ONNX Runtime for model inference
+import onnxruntime as ort
 
 # Page configuration
 st.set_page_config(
@@ -70,43 +64,42 @@ st.markdown("""
 # Load model and metadata
 @st.cache_resource
 def load_model_and_metadata():
-    """Load the trained model from Part 2"""
+    """Load the ONNX model for inference"""
     import os
     try:
-        # Load Part 2 model ONLY - use .h5 format for TF version compatibility
         # Try multiple path resolution strategies
         try:
             base_path = Path(__file__).parent.resolve()
         except:
             base_path = Path(os.getcwd())
         
-        # Try .h5 format first (compatible with TF 2.10 and TF 2.20)
-        model_path = base_path / 'jellyfish_final_model.h5'
+        # Look for ONNX model
+        model_path = base_path / 'jellyfish_final_model.onnx'
         
         if not model_path.exists():
-            # Fallback to .keras format
-            model_path = base_path / 'jellyfish_final_model.keras'
-        
-        if not model_path.exists():
-            # Try the directory where this script actually is
-            alternate_path = Path(r"C:\TP\YEAR 2 SEM 2\DLOR\DLOR_ASSIGNMENT\DLOR_JELLYFISH_DATASET\jellyfish_final_model.h5")
+            # Try alternate path
+            alternate_path = Path(r"C:\TP\YEAR 2 SEM 2\DLOR\DLOR_ASSIGNMENT\DLOR_JELLYFISH_DATASET\jellyfish_final_model.onnx")
             if alternate_path.exists():
                 model_path = alternate_path
         
         if not model_path.exists():
             st.error(f"❌ Model file not found!")
             st.error(f"   Tried: {model_path}")
-            st.error("   Please run cell 23 in DLOR_Part2.ipynb to save the model as .h5 format!")
+            st.error("   Please run Model_ONNX_Converter.ipynb to create the ONNX model!")
             st.info(f"   Current directory: {os.getcwd()}")
             st.info(f"   Base path: {base_path}")
             return None, None, None
         
-        # Load the Part 2 transfer learning model
-        # Use compile=False to avoid TensorFlow version compatibility issues
-        model = keras.models.load_model(str(model_path), compile=False)
-        # Recompile with current TensorFlow version
-        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        st.success(f"✅ Loaded Part 2 Model: {model_path.name} ({model.count_params():,} params)")
+        # Load ONNX model with ONNX Runtime
+        session = ort.InferenceSession(str(model_path))
+        
+        # Get model info
+        input_name = session.get_inputs()[0].name
+        output_name = session.get_outputs()[0].name
+        
+        # Get model size in MB
+        model_size_mb = model_path.stat().st_size / (1024 * 1024)
+        st.success(f"✅ Loaded ONNX Model: {model_path.name} ({model_size_mb:.1f} MB)")
         
         # Load Part 2 summary
         metadata = None
@@ -125,12 +118,19 @@ def load_model_and_metadata():
             'Mauve Stinger Jellyfish'
         ]
         
-        return model, metadata, class_names
+        # Store session info in a dict for easy access
+        model_info = {
+            'session': session,
+            'input_name': input_name,
+            'output_name': output_name
+        }
+        
+        return model_info, metadata, class_names
     except Exception as e:
         st.error(f"❌ Error loading model: {str(e)}")
         import traceback
         st.error(traceback.format_exc())
-        st.info("💡 Solution: Run cell 30 in DLOR_Part2.ipynb to re-save the model properly")
+        st.info("💡 Solution: Run Model_ONNX_Converter.ipynb to create the ONNX model")
         return None, None, None
 
 # Preprocessing function
@@ -157,13 +157,17 @@ def preprocess_image(image, target_size=(128, 128)):
     return img_array
 
 # Prediction function
-def predict(model, image, class_names):
-    """Make prediction on image"""
+def predict(model_info, image, class_names):
+    """Make prediction on image using ONNX Runtime"""
     # Preprocess
     processed_img = preprocess_image(image)
     
-    # Predict
-    predictions = model.predict(processed_img, verbose=0)
+    # Run ONNX inference
+    session = model_info['session']
+    input_name = model_info['input_name']
+    output_name = model_info['output_name']
+    
+    predictions = session.run([output_name], {input_name: processed_img})[0]
     
     # Get top class
     predicted_class_idx = np.argmax(predictions[0])
@@ -178,47 +182,11 @@ def predict(model, image, class_names):
 
 # Main app
 def main():
-    # Check TensorFlow availability first
-    if not TF_AVAILABLE:
-        st.error("🚨 TensorFlow is not installed in this environment!")
-        st.markdown("""
-        ### How to Fix:
-        
-        **Option 1: Use your conda TensorFlow environment**
-        ```bash
-        conda activate tensorflow-gpu
-        pip install streamlit plotly
-        streamlit run app.py
-        ```
-        
-        **Option 2: Install TensorFlow in current environment**
-        ```bash
-        pip install tensorflow
-        streamlit run app.py
-        ```
-        
-        **Option 3: Use the correct Python environment**
-        ```bash
-        # Find your conda environments
-        conda env list
-        
-        # Activate TensorFlow environment
-        conda activate tensorflow-gpu
-        
-        # Install Streamlit in that environment
-        pip install streamlit plotly
-        
-        # Run the app
-        streamlit run app.py
-        ```
-        """)
-        st.stop()
-    
     # Load model
     model, metadata, class_names = load_model_and_metadata()
     
     if model is None:
-        st.error("⚠️ Could not load model. Please ensure 'jellyfish_final_model.keras' exists in the directory.")
+        st.error("⚠️ Could not load model. Please run Model_ONNX_Converter.ipynb to create the ONNX model.")
         return
     
     # Header
