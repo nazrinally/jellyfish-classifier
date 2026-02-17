@@ -1,0 +1,48 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Keras Tuner results
+tuner_results/
+
+# Training artifacts (too large for GitHub)
+*.keras
+baseline_*.csv
+baseline_*.json
+resnet_history.csv
+efficientnet_history.csv
+part2_summary.json
+
+# Dataset folders (too large)
+Train/
+test/
+valid/
+barrel_jellyfish/
+blue_jellyfish/
+compass_jellyfish/
+lions_mane_jellyfish/
+mauve_stinger_jellyfish/
+Moon_jellyfish/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/
